@@ -1,0 +1,100 @@
+import math
+
+class CCBEdemaPredictor:
+    def __init__(self):
+        # Baseline log-odds calibrated to an approximate 10-15% baseline risk 
+        # for a low-risk, low-dose individual as observed in broad meta-analyses.
+        self.baseline_intercept = -2.2
+        
+        # Risk coefficients (Log of Odds Ratios derived from literature & study findings)
+        self.coef_standing_long = math.log(1.92)  # From Tolla et al. 2026 (AOR = 1.92)
+        self.coef_high_dose = math.log(1.58)      # From Tolla et al. 2026 (AOR = 1.58 trend)
+        self.coef_female = math.log(1.30)         # Meta-analysis weight for female gender
+        self.coef_older_age = math.log(1.40)      # Meta-analysis weight for age > 60
+        self.coef_raas_inhibitor = math.log(0.62) # Protective effect of ACEi/ARB (OR ~ 0.60)
+
+    def calculate_risk(self, age, gender, daily_standing_hours, ccb_dose, taking_raas_inhibitor):
+        """
+        Calculates the probability of developing CCB-induced peripheral edema.
+        
+        Parameters:
+        - age (int): Patient age in years
+        - gender (str): 'male' or 'female'
+        - daily_standing_hours (float): Average hours spent standing per day
+        - ccb_dose (str): 'low' (e.g., Amlodipine 5mg) or 'high' (e.g., Amlodipine 10mg)
+        - taking_raas_inhibitor (bool): True if taking a concomitant ACEi or ARB
+        """
+        z = self.baseline_intercept
+        
+        # 1. Standing Duration Risk (Primary independent predictor in Tolla et al.)
+        # Categorized based on cohort metrics where mean standing was ~3 hours
+        if daily_standing_hours >= 3.0:
+            z += self.coef_standing_long
+            
+        # 2. Dose-Dependent Risk (Tolla et al. & Makani et al.)
+        if ccb_dose.lower() == 'high':
+            z += self.coef_high_dose
+            
+        # 3. Demographic Modifiers (Literature-based consensus)
+        if gender.lower() == 'female':
+            z += self.coef_female
+        if age >= 60:
+            z += self.coef_older_age
+            
+        # 4. Protective Concomitant Therapy (Renin-Angiotensin System Inhibitors)
+        if taking_raas_inhibitor:
+            z += self.coef_raas_inhibitor
+            
+        # Logistic transformation to get probability
+        probability = 1 / (1 + math.exp(-z))
+        return round(probability * 100, 2)
+
+    def generate_clinical_report(self, age, gender, daily_standing_hours, ccb_dose, taking_raas_inhibitor):
+        prob = self.calculate_risk(age, gender, daily_standing_hours, ccb_dose, taking_raas_inhibitor)
+        
+        print("====================================================")
+        print("   CCB-INDUCED PERIPHERAL EDEMA RISK ASSESSMENT     ")
+        print("====================================================")
+        print(f"Patient Profile: {age}yo {gender.title()} | Daily Standing: {daily_standing_hours} hrs")
+        print(f"Current Regimen: CCB Dose: {ccb_dose.upper()} | Concomitant RAASi: {'Yes' if taking_raas_inhibitor else 'No'}")
+        print("----------------------------------------------------")
+        print(f"Calculated Probability of Edema: {prob}%")
+        
+        # Stratification and Actionable Clinical Guidance
+        if prob < 20.0:
+            strat = "LOW RISK"
+            guidance = "Continue current regimen. Routine clinical monitoring during standard follow-up visits."
+        elif 20.0 <= prob < 40.0:
+            strat = "MODERATE RISK"
+            guidance = "Counsel patient on non-pharmacological measures (e.g., strategic sitting intervals, leg elevation).\nConsider baseline evaluation of lower extremities."
+        else:
+            strat = "HIGH RISK"
+            guidance = "High predisposition to fluid retention. If clinically feasible, consider:\n1. Titrating down to a lower CCB dose if paired with another agent.\n2. Initiating/optimizing a concomitant ACE inhibitor or ARB to mitigate precapillary hydrostatic pressure.\n3. Proactive patient counseling to prevent unnecessary prescribing cascades (e.g., inappropriate loop diuretics)."
+
+        print(f"Risk Stratification: {strat}")
+        print(f"\nClinical Guidance:\n{guidance}")
+        print("====================================================")
+
+# --- Example Execution ---
+if __name__ == "__main__":
+    predictor = CCBEdemaPredictor()
+    
+    # Case Scenario A: High-risk profile (High dose, prolonged standing, no RAAS protection)
+    predictor.generate_clinical_report(
+        age=62, 
+        gender='female', 
+        daily_standing_hours=5.5, 
+        ccb_dose='high', 
+        taking_raas_inhibitor=False
+    )
+    
+    print("\n")
+    
+    # Case Scenario B: Mitigated profile (Optimized with concomitant ACEi/ARB)
+    predictor.generate_clinical_report(
+        age=62, 
+        gender='female', 
+        daily_standing_hours=5.5, 
+        ccb_dose='high', 
+        taking_raas_inhibitor=True
+    )
